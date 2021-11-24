@@ -6,7 +6,84 @@ const { Server } = require("socket.io");
 const io = new Server(server);
 const { Op } = require("sequelize");
 const {sequelize} = require('./models');
-const {User,Mutual} = require('./models')
+const {User,Mutual} = require('./models');
+
+// Promise for mutuals
+async function RB(friend1, friend2) {
+    let count=0;
+    let usr1 = null,
+        usr2 = null;
+    let rb = await Mutual.findAll({
+        where: {
+            requested_by: friend1,
+            status: "accepted"
+        }
+    })
+    await rb.forEach(async (element) => {
+        let usr1 = await Mutual.findOne({
+            where: {
+                requested_by: element.requested_to,
+                requested_to: friend2,
+                status: "accepted"
+            }
+        })
+        if (!usr1) {
+            usr2 = await Mutual.findOne({
+                where: {
+                    requested_to: element.requested_to,
+                    requested_by: friend2,
+                    status: "accepted"
+                }
+            })
+        }
+        if (usr2 || usr1) {
+            count++;
+            // console.log("I too get executed", count);
+        }
+    });
+    return count;
+}
+
+async function RT(friend1,friend2){
+    let count=0;
+    let rt = await Mutual.findAll({
+        where: {
+            requested_to: friend1,
+            status: "accepted"
+        }
+    })
+    let usr1 = null
+    let usr2 = null
+    await rt.forEach(async (element) => {
+        let usr1 = await Mutual.findOne({
+            where: {
+                requested_by: element.requested_by,
+                requested_to: friend2,
+                status: "accepted"
+            }
+        })
+        if (!usr1) {
+            usr2 = await Mutual.findOne({
+                where: {
+                    requested_to: element.requested_by,
+                    requested_by: friend2,
+                    status: "accepted"
+                }
+            })
+        }
+        if (usr2 || usr1) {
+            count++;
+        }
+    });
+    return count;
+}
+
+async function mutualCount(friend1,friend2){
+    let count = 0;
+    count += await RB(friend1, friend2)
+    count += await RT(friend1, friend2)
+    return count
+};
 
 app.use(express.json());
 app.use(express.urlencoded({
@@ -31,70 +108,73 @@ app.get('/logout:id',async (req,res)=>{
 })
 
 app.get("/mutuals",async (req,res)=>{
-    let count=0;
+    // let count=0;
     let {friend1,friend2} = req.body;
-    try {
-        let usr1=null,usr2=null;
-        let rb = await Mutual.findAll({
-            where: {
-                requested_by: friend1,
-                status: "accepted"
-            }
-        })
-        rb.forEach(async element => {
-            let usr1 = await Mutual.findOne({
-                where: {
-                    requested_by: element.requested_to,
-                    requested_to: friend2,
-                    status:"accepted"
-                }
-            })
-            if(!usr1){
-                usr2 = await Mutual.findOne({
-                    where:{
-                        requested_to: element.requested_to,
-                        requested_by: friend2,
-                        status:"accepted"
-                    }
-                })
-            }
-            if(usr2 || usr1){
-                count++;
-            }
-        });
+    // try {
+    //     let usr1=null,usr2=null;
+    //     let rb = await Mutual.findAll({
+    //         where: {
+    //             requested_by: friend1,
+    //             status: "accepted"
+    //         }
+    //     })
+    //     rb.forEach(async element => {
+    //         let usr1 = await Mutual.findOne({
+    //             where: {
+    //                 requested_by: element.requested_to,
+    //                 requested_to: friend2,
+    //                 status:"accepted"
+    //             }
+    //         })
+    //         if(!usr1){
+    //             usr2 = await Mutual.findOne({
+    //                 where:{
+    //                     requested_to: element.requested_to,
+    //                     requested_by: friend2,
+    //                     status:"accepted"
+    //                 }
+    //             })
+    //         }
+    //         if(usr2 || usr1){
+    //             count++;
+    //         }
+    //     });
         
-        let rt = await Mutual.findAll({
-            where: {
-                requested_to: friend1,
-                status: "accepted"
-            }
-        })
-        usr1=null 
-        usr2=null
-        rt.forEach(async element => {
-            let usr1 = await Mutual.findOne({
-                where: {
-                    requested_by: element.requested_by,
-                    requested_to:friend2,
-                    status:"accepted"
-                }
-            })
-            if(!usr1){
-                usr2 = await Mutual.findOne({
-                    where: {
-                        requested_to:element.requested_by,
-                        requested_by:friend2,
-                        status:"accepted"
-                    }
-                })
-            }
-            if (usr2 || usr1) {
-                count++;
-            }
-        });
-    } catch (err) {
-        res.json({msg:err}).status(500)
-    }
+    //     let rt = await Mutual.findAll({
+    //         where: {
+    //             requested_to: friend1,
+    //             status: "accepted"
+    //         }
+    //     })
+    //     usr1=null 
+    //     usr2=null
+    //     rt.forEach(async element => {
+    //         let usr1 = await Mutual.findOne({
+    //             where: {
+    //                 requested_by: element.requested_by,
+    //                 requested_to:friend2,
+    //                 status:"accepted"
+    //             }
+    //         })
+    //         if(!usr1){
+    //             usr2 = await Mutual.findOne({
+    //                 where: {
+    //                     requested_to:element.requested_by,
+    //                     requested_by:friend2,
+    //                     status:"accepted"
+    //                 }
+    //             })
+    //         }
+    //         if (usr2 || usr1) {
+    //             count++;
+    //         }
+    //     });
+    // } catch (err) {
+    //     res.json({msg:err}).status(500)
+    // }
+    let c = await mutualCount(friend1,friend2)
+    console.log(c);
+    // res.json({count:count});
 })
 
 io.on("connection", async (socket) => {
